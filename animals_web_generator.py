@@ -1,9 +1,11 @@
 import json
 
+
 def load_data(file_path):
-    """Loads a JSON file and returns its content."""
+    """ Loads a JSON file """
     with open(file_path, "r") as handle:
         return json.load(handle)
+
 
 def main():
     # 1. Template einlesen
@@ -14,24 +16,25 @@ def main():
     animals_data = load_data('animals_data.json')
     output = ''
     for animal in animals_data:
-        # Name
+        output += '    <li class="cards__item">\n'
+
         name = animal.get('name')
         if name:
-            output += f"Name: {name}\n"
-        # Diet
+            output += f"        Name: {name}<br/>\n"
+
         diet = animal.get('characteristics', {}).get('diet')
         if diet:
-            output += f"Diet: {diet}\n"
-        # First Location
+            output += f"        Diet: {diet}<br/>\n"
+
         locations = animal.get('locations', [])
         if locations:
-            output += f"Location: {locations[0]}\n"
-        # Type
+            output += f"        Location: {locations[0]}<br/>\n"
+
         animal_type = animal.get('characteristics', {}).get('type')
         if animal_type:
-            output += f"Type: {animal_type}\n"
-        # Leerzeile zwischen Einträgen
-        output += "\n"
+            output += f"        Type: {animal_type}<br/>\n"
+
+        output += '    </li>\n'
 
     # 3. Platzhalter ersetzen
     filled = template.replace('__REPLACE_ANIMALS_INFO__', output)
@@ -41,6 +44,7 @@ def main():
         f.write(filled)
 
     print("animals.html wurde erzeugt. Im Browser öffnen, um das Ergebnis zu sehen.")
+
 
 if __name__ == "__main__":
     main()

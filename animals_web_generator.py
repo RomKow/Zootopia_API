@@ -1,68 +1,134 @@
-import json
+#!/usr/bin/env python3
+"""
+Generiert eine HTML-Liste von Tieren über die API Ninjas.
+"""
 
-def load_data(file_path):
-    """Loads JSON data from a file."""
-    with open(file_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+import argparse
+import sys
+import os
+from urllib.parse import urlsplit, urlunsplit
+
+import requests
+from dotenv import load_dotenv
+
+# .env laden
+load_dotenv()
+
+API_KEY = os.getenv('API_KEY')
+_RAW_URL = os.getenv('API_URL', 'https://api.api-ninjas.com/v1/animals')
+_split = urlsplit(_RAW_URL)
+API_URL = urlunsplit((_split.scheme, _split.netloc, _split.path, '', ''))
+HEADERS = {'X-Api-Key': API_KEY} if API_KEY else {}
+
+TEMPLATE_PATH = 'animals_template.html'
+OUTPUT_PATH = 'animals.html'
+
+
+def parse_args():
+    """Liest die Tiernamen von der Kommandozeile ein."""
+    parser = argparse.ArgumentParser(
+        description='Generiert eine HTML-Liste von Tieren über die API.'
+    )
+    parser.add_argument(
+        'names',
+        nargs='*',
+        default=['Fox'],
+        help='Liste der Tiernamen, z. B.: Fox Lion Elephant (Default: Fox)',
+    )
+    return parser.parse_args()
+
+
+def load_template(path):
+    """Lädt das HTML-Template."""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+    except FileNotFoundError:
+        sys.exit(f'Template-Datei nicht gefunden: {path}')
+
+
+def write_output(path, content):
+    """Schreibt das generierte HTML in die Ausgabedatei."""
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+    except IOError as e:
+        sys.exit(f'Fehler beim Schreiben der Ausgabedatei: {e}')
+
+
+def fetch_animal(name):
+    """
+    Ruft Informationen zum Tier 'name' von der API ab.
+    Gibt das JSON-dekodierte Ergebnis zurück.
+    """
+    if not API_KEY:
+        raise RuntimeError('API_KEY nicht in der .env definiert')
+
+    params = {'name': name}
+    response = requests.get(API_URL, headers=HEADERS, params=params)
+
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as err:
+        raise RuntimeError(f'HTTP-Fehler: {err}. Antwort: {response.text}')
+
+    return response.json()
+
 
 def serialize_animal(animal):
     """
-    Serializes a single animal record to HTML.
-    Returns an <li> block in the desired format.
+    Serialisiert einen einzelnen Tier-Datensatz zu einem HTML-<li>-Block.
     """
-    output = '    <li class="cards__item">\n'
+    lines = ['    <li class="cards__item">']
 
-    # Title with name
-    name = animal.get("name")
+    name = animal.get('name')
     if name:
-        output += f'      <div class="card__title">{name}</div>\n'
+        lines.append(f'      <div class="card__title">{name}</div>')
 
-    # Open the text section
-    output += '      <p class="card__text">\n'
+    lines.append('      <p class="card__text">')
 
-    # Diet
-    diet = animal.get("characteristics", {}).get("diet")
+    diet = animal.get('characteristics', {}).get('diet')
     if diet:
-        output += f'        <strong>Diet:</strong> {diet}<br/>\n'
+        lines.append(f'        <strong>Diet:</strong> {diet}<br/>')
 
-    # Location (joined with ' and ')
-    locations = animal.get("locations", [])
+    locations = animal.get('locations', [])
     if locations:
-        locs = " and ".join(locations)
-        output += f'        <strong>Location:</strong> {locs}<br/>\n'
+        locs = ' and '.join(locations)
+        lines.append(f'        <strong>Location:</strong> {locs}<br/>')
 
-    # Type
-    animal_type = animal.get("characteristics", {}).get("type")
+    animal_type = animal.get('characteristics', {}).get('type')
     if animal_type:
-        output += f'        <strong>Type:</strong> {animal_type}<br/>\n'
+        lines.append(f'        <strong>Type:</strong> {animal_type}<br/>')
 
-    # Close the text section and li
-    output += '      </p>\n'
-    output += '    </li>\n'
+    lines.append('      </p>')
+    lines.append('    </li>')
 
-    return output
+    return '\n'.join(lines) + '\n'
+
 
 def main():
-    # 1. Read the template
-    with open("animals_template.html", "r", encoding="utf-8") as f:
-        template = f.read()
+    args = parse_args()
+    template = load_template(TEMPLATE_PATH)
 
-    # 2. Load data
-    animals_data = load_data("animals_data.json")
+    animals_data = []
+    for name in args.names:
+        try:
+            data = fetch_animal(name)
+        except Exception as e:
+            print(f"Fehler beim Abrufen von '{name}': {e}", file=sys.stderr)
+            continue
 
-    # 3. Generate HTML for all animals
-    animals_html = ""
-    for animal in animals_data:
-        animals_html += serialize_animal(animal)
+        if isinstance(data, list):
+            animals_data.extend(data)
+        else:
+            animals_data.append(data)
 
-    # 4. Replace placeholder in template
-    result = template.replace("__REPLACE_ANIMALS_INFO__", animals_html)
+    animals_html = ''.join(serialize_animal(a) for a in animals_data)
+    result_html = template.replace('__REPLACE_ANIMALS_INFO__', animals_html)
 
-    # 5. Write the result
-    with open("animals.html", "w", encoding="utf-8") as f:
-        f.write(result)
+    write_output(OUTPUT_PATH, result_html)
+    print(f'{OUTPUT_PATH} wurde erfolgreich erstellt.')
 
-    # print("animals.html has been generated. Open it in the browser to view.")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

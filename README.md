@@ -1,4 +1,4 @@
-# Animal Web Generator
+# Animal Website Generator
 
 Generates a static HTML page listing animals fetched from the API Ninjas.
 

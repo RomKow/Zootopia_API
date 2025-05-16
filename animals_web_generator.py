@@ -1,17 +1,15 @@
-#!/usr/bin/env python3
 """
-Generiert eine HTML-Liste von Tieren über die API Ninjas.
+Generates an HTML list of animals using the API Ninjas.
 """
 
-import argparse
-import sys
 import os
+import sys
 from urllib.parse import urlsplit, urlunsplit
 
 import requests
 from dotenv import load_dotenv
 
-# .env laden
+# Load environment variables from .env file
 load_dotenv()
 
 API_KEY = os.getenv('API_KEY')
@@ -24,60 +22,45 @@ TEMPLATE_PATH = 'animals_template.html'
 OUTPUT_PATH = 'animals.html'
 
 
-def parse_args():
-    """Liest die Tiernamen von der Kommandozeile ein."""
-    parser = argparse.ArgumentParser(
-        description='Generiert eine HTML-Liste von Tieren über die API.'
-    )
-    parser.add_argument(
-        'names',
-        nargs='*',
-        default=['Fox'],
-        help='Liste der Tiernamen, z. B.: Fox Lion Elephant (Default: Fox)',
-    )
-    return parser.parse_args()
-
-
 def load_template(path):
-    """Lädt das HTML-Template."""
+    """Load the HTML template from the given file path."""
     try:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        sys.exit(f'Template-Datei nicht gefunden: {path}')
+        sys.exit(f'Template file not found: {path}')
 
 
 def write_output(path, content):
-    """Schreibt das generierte HTML in die Ausgabedatei."""
+    """Write the generated HTML content to the specified output file."""
     try:
         with open(path, 'w', encoding='utf-8') as f:
             f.write(content)
     except IOError as e:
-        sys.exit(f'Fehler beim Schreiben der Ausgabedatei: {e}')
+        sys.exit(f'Error writing output file: {e}')
 
 
 def fetch_animal(name):
     """
-    Ruft Informationen zum Tier 'name' von der API ab.
-    Gibt das JSON-dekodierte Ergebnis zurück.
+    Fetch information about the given animal name from the API.
+    Returns the JSON-decoded response.
     """
     if not API_KEY:
-        raise RuntimeError('API_KEY nicht in der .env definiert')
+        raise RuntimeError('API_KEY is not defined in .env')
 
     params = {'name': name}
     response = requests.get(API_URL, headers=HEADERS, params=params)
-
     try:
         response.raise_for_status()
     except requests.HTTPError as err:
-        raise RuntimeError(f'HTTP-Fehler: {err}. Antwort: {response.text}')
+        raise RuntimeError(f'HTTP error: {err}. Response: {response.text}')
 
     return response.json()
 
 
 def serialize_animal(animal):
     """
-    Serialisiert einen einzelnen Tier-Datensatz zu einem HTML-<li>-Block.
+    Serialize a single animal record to an HTML <li> block.
     """
     lines = ['    <li class="cards__item">']
 
@@ -107,27 +90,32 @@ def serialize_animal(animal):
 
 
 def main():
-    args = parse_args()
+    """
+    Prompt the user for an animal name, fetch data, and generate the HTML page.
+    """
+    name = input('Enter a name of an animal: ').strip()
+    if not name:
+        sys.exit('No animal name provided.')
+
     template = load_template(TEMPLATE_PATH)
 
-    animals_data = []
-    for name in args.names:
-        try:
-            data = fetch_animal(name)
-        except Exception as e:
-            print(f"Fehler beim Abrufen von '{name}': {e}", file=sys.stderr)
-            continue
+    try:
+        data = fetch_animal(name)
+    except Exception as e:
+        sys.exit(f"Error fetching '{name}': {e}")
 
-        if isinstance(data, list):
-            animals_data.extend(data)
-        else:
-            animals_data.append(data)
+    animals = data if isinstance(data, list) else [data]
 
-    animals_html = ''.join(serialize_animal(a) for a in animals_data)
+    if not animals:
+        # Generate a friendly message if no animals are found
+        animals_html = f'<h2>The animal "{name}" does not exist.</h2>\n'
+    else:
+        animals_html = ''.join(serialize_animal(a) for a in animals)
+
     result_html = template.replace('__REPLACE_ANIMALS_INFO__', animals_html)
 
     write_output(OUTPUT_PATH, result_html)
-    print(f'{OUTPUT_PATH} wurde erfolgreich erstellt.')
+    print(f'Website was successfully generated to the file {OUTPUT_PATH}.')
 
 
 if __name__ == '__main__':
